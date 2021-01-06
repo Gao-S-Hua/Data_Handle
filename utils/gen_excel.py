@@ -4,26 +4,10 @@ from openpyxl.chart import BarChart, Series, Reference, LineChart
 #### CONSTANTS SETTINGS #############
 CHART_LOCATION = "B10"
 
-def add_summarize(test_result, wb):
-  ws = wb.create_sheet("Summary")
-  title = ["Pass", "Fail"]
-  ws.append(title)
-  pass_count = 0
-  fail_count = 0
-  for result in test_result:
-    for data in result.data:
-      if data > 100 :
-        pass_count = pass_count + 1
-      else:
-        fail_count = fail_count + 1
-  ws.append([pass_count, fail_count])
-  add_counter(ws)
-  return wb
-
-
 def gen_excel(test_result):
   wb = Workbook()
-  add_summarize(test_result, wb)
+  summary = gen_summary(test_result)
+  add_summarize(summary, wb)
   for result in test_result:
     ws = wb.create_sheet(result.SN + "_" + result.temperature)
     title = ["SN", "Temperature", "Fmax(MHz)"]
@@ -34,7 +18,33 @@ def gen_excel(test_result):
   page_one=wb.get_sheet_by_name('Sheet')
   wb.remove_sheet(page_one)
   wb.save(r"./outputs/Result.xlsx")
+  return summary
 
+def gen_summary(test_result):
+  pass_count = 0
+  fail_count = 0
+  result_count = 0
+  length_array = []
+  for result in test_result:
+    result_count = result_count + 1
+    length_array.append(len(result.data))
+    for data in result.data:
+      if data > 100 :
+        pass_count = pass_count + 1
+      else:
+        fail_count = fail_count + 1
+
+  my_summary = Summary(pass_count, fail_count, result_count,length_array)
+  return my_summary
+
+
+def add_summarize(summary, wb):
+  ws = wb.create_sheet("Summary")
+  title = ["Pass", "Fail"]
+  ws.append(title)
+  ws.append([summary.pass_count, summary.fail_count])
+  add_counter(ws)
+  return wb
 
 def add_fmax_plot(ws):
   c1 = LineChart()
@@ -67,6 +77,11 @@ def add_counter(ws):
   chart1.add_data(data1, titles_from_data=True)
   data2 = Reference(ws, min_col=2, min_row=1, max_row=2, max_col=2)
   chart1.add_data(data2, titles_from_data=True)
-  # cats = Reference(ws, min_col=1, min_row=1, max_row=1, max_col=2)
-  # chart1.set_categories(cats)
   ws.add_chart(chart1, CHART_LOCATION)
+
+class Summary:
+  def __init__(self, pass_count, fail_count, result_count, length_array):
+    self.pass_count = pass_count
+    self.fail_count = fail_count
+    self.result_count = result_count
+    self.length_array = length_array

@@ -7,7 +7,7 @@ from common import get_path
 SRC_FILE = get_path("\\outputs\\Result.xlsx")
 IMAGE_PATH = get_path("\\outputs\\img\\")
 
-def store_excel_charts():
+def store_excel_charts(summary):
   os.mkdir(IMAGE_PATH)
   o = win32com.client.Dispatch("Excel.Application")
   o.Visible = 0

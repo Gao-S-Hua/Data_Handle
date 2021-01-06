@@ -9,10 +9,10 @@ from utils.gen_ppt import gen_ppt
 result_list = gen_data('./data/')
 
 # Generate the excel
-gen_excel(result_list)
+summary = gen_excel(result_list)
 
 # Save Charts
-store_excel_charts()
+store_excel_charts(summary)
 
 # Generate the PPT Report
-gen_ppt()
+gen_ppt(summary)
