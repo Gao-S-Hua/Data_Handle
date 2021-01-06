@@ -1,6 +1,9 @@
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, Series, Reference, LineChart
 
+#### CONSTANTS SETTINGS #############
+CHART_LOCATION = "B10"
+
 def add_summarize(test_result, wb):
   ws = wb.create_sheet("Summary")
   title = ["Pass", "Fail"]
@@ -30,7 +33,7 @@ def gen_excel(test_result):
     add_fmax_plot(ws)
   page_one=wb.get_sheet_by_name('Sheet')
   wb.remove_sheet(page_one)
-  wb.save("result.xlsx")
+  wb.save(r"./outputs/Result.xlsx")
 
 
 def add_fmax_plot(ws):
@@ -39,16 +42,19 @@ def add_fmax_plot(ws):
   c1.style = 13
   c1.y_axis.title = 'Frequency (Fmax)'
   c1.x_axis.title = 'Test count'
-  data = Reference(ws, min_col=3, min_row=2, max_col=3, max_row=8)
-  c1.add_data(data, titles_from_data=False)
+  data = Reference(ws, min_col=3, min_row=1, max_col=3, max_row=8)
+  c1.add_data(data, titles_from_data=True)
 
   s1 = c1.series[0]
-  s1.marker.symbol = "star"
-  s1.marker.graphicalProperties.solidFill = "#000000" # Marker filling
-  s1.marker.graphicalProperties.line.solidFill = "#000000" # Marker outline
+  s1.marker.symbol = "circle"
+  s1.marker.size = 6
+  s1.marker.graphicalProperties.solidFill = "fa8c16" # Marker filling
+  s1.graphicalProperties.line.solidFill = "00AAAA"
+  s1.graphicalProperties.line.width = 20010 # width in EMUs
+  s1.graphicalProperties.line.dashStyle = "dash"
   s1.graphicalProperties.line.noFill = False
   s1.smooth = True
-  ws.add_chart(c1, "A10")
+  ws.add_chart(c1, CHART_LOCATION)
 
 def add_counter(ws):
   chart1 = BarChart()
@@ -63,4 +69,4 @@ def add_counter(ws):
   chart1.add_data(data2, titles_from_data=True)
   # cats = Reference(ws, min_col=1, min_row=1, max_row=1, max_col=2)
   # chart1.set_categories(cats)
-  ws.add_chart(chart1, "A10")
+  ws.add_chart(chart1, CHART_LOCATION)
