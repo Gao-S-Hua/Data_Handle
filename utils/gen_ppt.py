@@ -9,6 +9,7 @@ def gen_ppt(summary):
   gen_summary(prs, summary)
   gen_charts(prs, summary.result_count)
   prs.save(r'./outputs/Report.pptx')
+  print("| Final Report is Generated")
 
 def open_template():
   prs = Presentation(r'./utils/template.pptx')
@@ -38,4 +39,6 @@ def gen_summary(prs, summary):
   table.cell(1, 1).text = str(summary.fail_count)
 
   picture = slide.shapes.add_picture(get_path("\\outputs\\img\\1.png"), Inches(2), Inches(3))
-# gen_ppt()
+
+if __name__ == "__main__":
+  gen_ppt()

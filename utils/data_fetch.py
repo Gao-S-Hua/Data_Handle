@@ -16,6 +16,7 @@ def gen_data(dir):
     new_result = TestResult(SN, temperature)
     new_result.data = data
     result_list.append(new_result)
+  print("| Raw Data has been capture")
   return result_list
 
 def handle_data(text):

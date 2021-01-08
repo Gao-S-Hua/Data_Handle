@@ -1,23 +1,28 @@
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, Series, Reference, LineChart
-
+from openpyxl.chart.legend import LegendEntry
+from openpyxl.chart.trendline import Trendline, TrendlineLabel
+from openpyxl.chart.shapes import GraphicalProperties
+from openpyxl.drawing.line import LineProperties
+from openpyxl.chart.text import Text
 #### CONSTANTS SETTINGS #############
 CHART_LOCATION = "B10"
 
-def gen_excel(test_result):
+def gen_excel(test_result, spec = 100):
   wb = Workbook()
   summary = gen_summary(test_result)
   add_summarize(summary, wb)
   for result in test_result:
     ws = wb.create_sheet(result.SN + "_" + result.temperature)
-    title = ["SN", "Temperature", "Fmax(MHz)"]
+    title = ["SN", "Temperature", "Fmax", "Spec"]
     ws.append(title)
     for data in result.data:
-      ws.append([result.SN, result.temperature, data])
-    add_fmax_plot(ws)
+      ws.append([result.SN, result.temperature, data, spec])
+    add_fmax_plot(ws, len(result.data))
   page_one=wb.get_sheet_by_name('Sheet')
   wb.remove_sheet(page_one)
   wb.save(r"./outputs/Result.xlsx")
+  print("| Result.xlsx has been generated")
   return summary
 
 def gen_summary(test_result):
@@ -46,25 +51,21 @@ def add_summarize(summary, wb):
   add_counter(ws)
   return wb
 
-def add_fmax_plot(ws):
-  c1 = LineChart()
-  c1.title = "PCIE Fmax"
-  c1.style = 13
-  c1.y_axis.title = 'Frequency (Fmax)'
-  c1.x_axis.title = 'Test count'
-  data = Reference(ws, min_col=3, min_row=1, max_col=3, max_row=8)
-  c1.add_data(data, titles_from_data=True)
+def add_fmax_plot(ws, length):
+  this_chart = LineChart()
+  this_chart.title = "PCIE Fmax"
+  this_chart.style = 13
+  this_chart.y_axis.title = 'Frequency (MHz)'
+  this_chart.x_axis.title = 'Test count'
+  data = Reference(ws, min_col=3, min_row=1, max_col=4, max_row=8)
+  this_chart.add_data(data, titles_from_data=True)
 
-  s1 = c1.series[0]
-  s1.marker.symbol = "circle"
-  s1.marker.size = 6
-  s1.marker.graphicalProperties.solidFill = "fa8c16" # Marker filling
-  s1.graphicalProperties.line.solidFill = "00AAAA"
-  s1.graphicalProperties.line.width = 20010 # width in EMUs
-  s1.graphicalProperties.line.dashStyle = "dash"
-  s1.graphicalProperties.line.noFill = False
-  s1.smooth = True
-  ws.add_chart(c1, CHART_LOCATION)
+  data_line = this_chart.series[0]
+  set_data_line(data_line)
+
+  spec_line = this_chart.series[1]
+  set_spec_line(spec_line)
+  ws.add_chart(this_chart, CHART_LOCATION)
 
 def add_counter(ws):
   chart1 = BarChart()
@@ -85,3 +86,27 @@ class Summary:
     self.fail_count = fail_count
     self.result_count = result_count
     self.length_array = length_array
+
+def add_trend_line():
+  line_props = LineProperties(solidFill = '1890ff', prstDash = 'dash', w = 15010)
+  g_props = GraphicalProperties(ln=line_props)
+  linear_trendline = Trendline(spPr=g_props, forward = 1, backward = 1)
+  return linear_trendline
+
+def set_data_line(line):
+  line.marker.symbol = "circle"
+  line.marker.size = 6
+  line.marker.graphicalProperties.solidFill = "e6fffb" # Marker filling
+  line.marker.graphicalProperties.line.solidFill = "13c2c2"
+  line.trendline = add_trend_line()
+  line.graphicalProperties.line.noFill = True
+
+def set_spec_line(line):
+  line_props = LineProperties(solidFill = 'fa541c', w = 15010)
+  g_props = GraphicalProperties(ln=line_props)
+  line.trendline = Trendline(spPr=g_props, forward = 1, backward = 1)
+  line.graphicalProperties.line.noFill = True
+  return 0
+
+if __name__ == "__main__":
+  gen_excel()
