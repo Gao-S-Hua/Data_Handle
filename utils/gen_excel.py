@@ -107,6 +107,3 @@ def set_spec_line(line):
   line.trendline = Trendline(spPr=g_props, forward = 1, backward = 1)
   line.graphicalProperties.line.noFill = True
   return 0
-
-if __name__ == "__main__":
-  gen_excel()

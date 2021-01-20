@@ -1,5 +1,7 @@
-import psutil
+thisdict = {
+  "brand": "Ford",
+  "model": "Mustang",
+  "year": 1964
+}
 
-for proc in psutil.process_iter():
-    if proc.name() == "excel.exe":
-        print("Excel is open")
+print(thisdict["brand"])

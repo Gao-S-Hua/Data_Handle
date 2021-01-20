@@ -21,7 +21,7 @@ def gen_charts(prs, num):
     slide = prs.slides.add_slide(EMPTY_LAYOUT)
     title = slide.shapes.title
     title.text = "PCIE Test " + str(i-1)
-    picture = slide.shapes.add_picture(get_path("\\outputs\\img\\" + str(i) +".png"), Inches(2), Inches(2))
+    slide.shapes.add_picture(get_path("\\outputs\\img\\" + str(i) +".png"), Inches(2), Inches(2))
 
 def gen_summary(prs, summary):
   EMPTY_LAYOUT = prs.slide_layouts[EMPTY_LAYOUT_NUM]
@@ -38,7 +38,4 @@ def gen_summary(prs, summary):
   table.cell(1, 0).text = str(summary.pass_count)
   table.cell(1, 1).text = str(summary.fail_count)
 
-  picture = slide.shapes.add_picture(get_path("\\outputs\\img\\1.png"), Inches(2), Inches(3))
-
-if __name__ == "__main__":
-  gen_ppt()
+  slide.shapes.add_picture(get_path("\\outputs\\img\\1.png"), Inches(2), Inches(3))
