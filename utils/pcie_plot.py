@@ -10,7 +10,7 @@ from openpyxl.chart.shapes import GraphicalProperties
 from openpyxl.chart.layout import Layout, ManualLayout
 from openpyxl.drawing.text import CharacterProperties, Paragraph, ParagraphProperties, RegularTextRun
 from copy import deepcopy
-import statistics
+import numpy as np
 
 TEMPLATE_FILE = '../utils/template.xlsx'
 DATA_LINE_INDEX = 0
@@ -46,10 +46,13 @@ class Pattern:
     self.cold = cold
 
 class TILOList:
-  def __init__(self, LP, MP, HP):
+  def __init__(self, LP, MP, HP, LP_list, MP_list, HP_list):
     self.LP = LP
     self.MP = MP
     self.HP = HP
+    self.LP_list = LP_list
+    self.MP_list = MP_list
+    self.HP_list = HP_list
 
 class Scale:
   def __init__(self):
@@ -93,21 +96,35 @@ def get_pattern_list(worksheet):
   return pattern_list
 
 def get_TILO(worksheet):
-  HP = Reference(worksheet, min_col=7, min_row=START_POINT_Y, max_row=40)
-  MP = Reference(worksheet, min_col=8, min_row=START_POINT_Y, max_row=40)
-  LP = Reference(worksheet, min_col=10, min_row=START_POINT_Y, max_row=40)
-  Tilo_List = TILOList(LP, MP, HP)
+  HP_TARGET = 6
+  MP_TARGET = 7
+  LP_TARGET = 9
+  HP = Reference(worksheet, min_col=HP_TARGET, min_row=START_POINT_Y, max_row=40)
+  MP = Reference(worksheet, min_col=MP_TARGET, min_row=START_POINT_Y, max_row=40)
+  LP = Reference(worksheet, min_col=LP_TARGET, min_row=START_POINT_Y, max_row=40)
+  LP_list = []
+  MP_list = []
+  HP_list = []
+  for i in range(START_POINT_Y, START_POINT_Y + 36):
+    add_List(HP_list, worksheet, i, HP_TARGET)
+    add_List(MP_list, worksheet, i, MP_TARGET)
+    add_List(LP_list, worksheet, i, LP_TARGET)
+  Tilo_List = TILOList(LP, MP, HP, LP_list, MP_list, HP_list)
   return Tilo_List
+
+def add_List(list, worksheet, row, column):
+  value = worksheet.cell(row = row, column = column).value
+  if value is None:
+    list.append(None)
+  else:
+    list.append(float(value))
 
 def get_data(worksheet, column):
   data = Reference(worksheet, min_col = column, min_row = 5, max_row = 40)
-  return data
-
-def data_trendline():
-  line_props = LineProperties(solidFill = '4472C4', prstDash = 'dash', w = 15010)
-  g_props = GraphicalProperties(ln=line_props)
-  linear_trendline = Trendline(spPr=g_props, forward = 1, backward = 1, trendlineType='exp')
-  return linear_trendline
+  data_list = []
+  for i in range(START_POINT_Y, START_POINT_Y + 36):
+    add_List(data_list, worksheet, i, column)
+  return [data, data_list]
 
 def copy_style(line1, line2):
   line1.graphicalProperties = line2.graphicalProperties
@@ -125,9 +142,10 @@ def check_valid(worksheet, column):
 def get_Vol(Vol, Template):
   TILO_list = Template.TILO_list
   TILO = None
-  scale = Scale()
+  scale = Scale() 
   if Vol == 'LP':
       TILO = TILO_list.LP
+      TILO_value_list = TILO_list.LP_list
       Vmin = Template.LPmin
       Vnum = Template.LP
       scale.xmin = 5
@@ -138,6 +156,7 @@ def get_Vol(Vol, Template):
     TILO = TILO_list.MP
     Vmin = Template.MPmin
     Vnum = Template.MP
+    TILO_value_list = TILO_list.MP_list
     scale.xmin = 5
     scale.xmax = 10
     scale.ymin = 0.5
@@ -146,6 +165,7 @@ def get_Vol(Vol, Template):
     TILO = TILO_list.HP
     Vmin = Template.HPmin
     Vnum = Template.HP
+    TILO_value_list = TILO_list.HP_list
     scale.xmin = 4
     scale.xmax = 9
     scale.ymin = 0.4
@@ -153,7 +173,8 @@ def get_Vol(Vol, Template):
   if TILO is None:
     print("Error")
     exit(0)
-  return [TILO, Vmin, Vnum, scale]
+  return [TILO, Vmin, Vnum, TILO_value_list, scale]
+
 def get_location(pos):
   if pos == 1:
     return 'B2'
@@ -163,6 +184,7 @@ def get_location(pos):
     return 'L2'
   if pos == 4:
     return 'L20'
+  
 def get_template(workbook):
   Template = Template_Sheet()
   Template.specSheet = workbook['Spec']
@@ -190,33 +212,45 @@ def get_template(workbook):
 def set_title(title, text):
   title.text.rich.p[0].r[0].t = text
 
-def add_sigma(worksheet, ptr, Template, pos):
-  data_list = []
+def add_sigma(worksheet, ptr, Template, pos, x_list, y_list):
+  x_clean_list = []
+  y_clean_list = []
   for i in range(0, 36):
-    value = Template.dataSheet.cell(row = START_POINT_Y + i, column = ptr).value
-    if not (value is None):
-      data_list.append(float(value))
-  stdev = statistics.stdev(data_list)
+    if x_list[i] is None:
+      continue
+    if y_list[i] is None:
+      continue
+    x_clean_list.append(x_list[i])
+    y_clean_list.append(y_list[i])
+  x = np.array(x_clean_list)
+  y = np.array(y_clean_list)
+  [a, b] = np.polyfit(x, np.log(y), 1)
+  diff = []
+  for i in range(0, len(x_clean_list)):
+    y_est = np.exp(b) * np.exp(a * x_clean_list[i])
+    diff.append(y_clean_list[i] - y_est)
+  stdev = np.std(diff)
+ 
   for i in range(0, 36):
     value = Template.dataSheet.cell(row = START_POINT_Y + i, column = ptr).value
     if not (value is None):
       worksheet.cell(row = START_POINT_Y + i, column = pos + 24).value = 3 * stdev + float(value)
       
 def plot_sigma(worksheet, Template, pos, xvalues):
-  data = get_data(worksheet, pos + 24)
-  series = Series(data, xvalues, title = '3-sgm')
+  data = get_data(worksheet, pos + 24)[0]
+  series = Series(data, xvalues, title = '3-sigma')
   copy_style(series, Template.sigmaLine)
   return series
 
 def add_charts(worksheet, ptr, subName, pattern, pos, Template):
   if not check_valid(Template.dataSheet, ptr):
     return
-  data = get_data(Template.dataSheet, ptr)
+  [data, data_list] = get_data(Template.dataSheet, ptr)
   if pos % 2 == 1:
     temp = pattern.hot
   else :
     temp = pattern.cold
-  [xvalues, Vmin, Vnum, scale] = get_Vol(pattern.condition, Template)
+  [xvalues, Vmin, Vnum, TILO_value_list, scale] = get_Vol(pattern.condition, Template)
   new_chart = deepcopy(Template.chart)
   # Data Plot
   series = Series(data, xvalues, title = subName + ' ' + str(temp))
@@ -224,7 +258,7 @@ def add_charts(worksheet, ptr, subName, pattern, pos, Template):
   new_chart.series[0] = series
   new_chart.series.append(Vmin)
   # 3 sigma Line
-  add_sigma(worksheet, ptr, Template, pos)
+  add_sigma(worksheet, ptr, Template, pos, TILO_value_list, data_list)
   sigma_line = plot_sigma(worksheet, Template, pos, xvalues)
   new_chart.series.append(sigma_line)
   # Chart
