@@ -1,0 +1,5 @@
+openpyxl  (openpyxl)
+numpy     (numpy)
+pptx      (python-pptx)
+win32com  (pywin32)
+PIL       (Pillow)
