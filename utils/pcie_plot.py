@@ -1,18 +1,11 @@
 from openpyxl import load_workbook
-from openpyxl.chart import (
-    ScatterChart,
-    Series,
-    Reference,
-)
-from openpyxl.drawing.line import LineProperties
-from openpyxl.chart.trendline import Trendline, TrendlineLabel
-from openpyxl.chart.shapes import GraphicalProperties
-from openpyxl.chart.layout import Layout, ManualLayout
-from openpyxl.drawing.text import CharacterProperties, Paragraph, ParagraphProperties, RegularTextRun
+from openpyxl.chart import Series, Reference
+from openpyxl.styles import Font, Color
 from copy import deepcopy
 import numpy as np
 
 TEMPLATE_FILE = '../utils/template.xlsx'
+FINAL_NAME = 'PCIE_ES2.xlsx'
 DATA_LINE_INDEX = 0
 SIGMA_LINE_INDEX = 7
 VMIN_LINE_INDEX = 1
@@ -24,7 +17,7 @@ def pcie_plot():
   Template = get_template(workbook)
   Pattern_list = get_pattern_list(Template.specSheet)
   ptr = START_POINT_X
-  
+  # Data Plot
   for pattern in Pattern_list:
     new_sheet = workbook.create_sheet(pattern.name)
     sub_pattern1 = Template.dataSheet.cell(row = 3, column = ptr).value
@@ -35,8 +28,9 @@ def pcie_plot():
     add_charts(new_sheet, ptr + 3,  sub_pattern2, pattern, 4, Template)  
     ptr = ptr + 4
   
+
   Template.specSheet.sheet_state = 'hidden'
-  workbook.save(r'../outputs/line.xlsx')
+  workbook.save(r'../outputs/' + FINAL_NAME)
 
 class Pattern:
   def __init__(self, name, condition, hot, cold):
@@ -44,6 +38,7 @@ class Pattern:
     self.condition = condition
     self.hot = hot
     self.cold = cold
+    self.sigmaData = None
 
 class TILOList:
   def __init__(self, LP, MP, HP, LP_list, MP_list, HP_list):
@@ -65,19 +60,29 @@ class Template_Sheet:
   def __init__(self):
     self.dataSheet = None
     self.specSheet = None
+    self.reportSheet = None
     self.dataLine = None
     self.sigmaLine = None
     self.vMinLine = None
+    self.dashLine1 = None
+    self.dasnLine2 = None
     self.LPmin = None
-    self.MPmin = None
-    self.HPmin = None
     self.MPmin = None
     self.HPmin = None
     self.chart = None
     self.TILO_List = None
+    self.LPDash = None
+    self.MPDash = None
+    self.HPDash = None
     self.LP = 0
     self.MP = 0
     self.HP = 0
+    self.reportPos = 0
+    self.D1LP = 0
+    self.D2LP = 0
+    self.D1MP = 0
+    self.D2MP = 0
+    self.D3HP = 0
             
 def get_pattern_list(worksheet):
   row = 2
@@ -142,16 +147,20 @@ def check_valid(worksheet, column):
 def get_Vol(Vol, Template):
   TILO_list = Template.TILO_list
   TILO = None
+  dashLine = None
   scale = Scale() 
   if Vol == 'LP':
-      TILO = TILO_list.LP
-      TILO_value_list = TILO_list.LP_list
-      Vmin = Template.LPmin
-      Vnum = Template.LP
-      scale.xmin = 5
-      scale.xmax = 10
-      scale.ymin = 0.5
-      scale.ymax = 0.8
+    TILO = TILO_list.LP
+    TILO_value_list = TILO_list.LP_list
+    Vmin = Template.LPmin
+    Vnum = Template.LP
+    scale.xmin = 5
+    scale.xmax = 10
+    scale.ymin = 0.5
+    scale.ymax = 0.8
+    dashLine = Template.LPDash
+    dashSpec = [Template.D1LP, Template.D2LP]
+    dashPos = [5, 7]
   if Vol == 'MP':
     TILO = TILO_list.MP
     Vmin = Template.MPmin
@@ -161,19 +170,25 @@ def get_Vol(Vol, Template):
     scale.xmax = 10
     scale.ymin = 0.5
     scale.ymax = 0.8
+    dashLine = Template.MPDash
+    dashSpec = [Template.D1MP, Template.D2MP]
+    dashPos = [5, 7]
   if Vol == 'HP':
     TILO = TILO_list.HP
     Vmin = Template.HPmin
     Vnum = Template.HP
     TILO_value_list = TILO_list.HP_list
     scale.xmin = 4
-    scale.xmax = 9
-    scale.ymin = 0.4
-    scale.ymax = 1
+    scale.xmax = 7
+    scale.ymin = 0.44
+    scale.ymax = 0.9
+    dashLine = Template.HPDash
+    dashSpec = [Template.D3HP]
+    dashPos = [9]
   if TILO is None:
     print("Error")
     exit(0)
-  return [TILO, Vmin, Vnum, TILO_value_list, scale]
+  return [TILO, Vmin, Vnum, TILO_value_list, scale, dashLine, dashSpec, dashPos]
 
 def get_location(pos):
   if pos == 1:
@@ -189,6 +204,7 @@ def get_template(workbook):
   Template = Template_Sheet()
   Template.specSheet = workbook['Spec']
   Template.dataSheet = workbook['Data']
+  Template.reportSheet = workbook['Final Report']
   Template.chart = deepcopy(Template.specSheet._charts[0])
   Vx = Reference(Template.specSheet, min_col = 7, min_row = 11, max_row = 12)
   LPmin = Reference(Template.specSheet, min_col = 8, min_row = 11, max_row = 12)
@@ -203,16 +219,42 @@ def get_template(workbook):
   Template.dataLine = Template.chart.series[DATA_LINE_INDEX]
   Template.vMinLine = Template.specSheet._charts[1].series[0]
   Template.sigmaLine = Template.specSheet._charts[2].series[0]
+  Template.dashLine1 = Template.specSheet._charts[3].series[0]
+  Template.dashLine2 = Template.specSheet._charts[4].series[0]
   copy_style(Template.LPmin, Template.vMinLine)
   copy_style(Template.MPmin, Template.vMinLine)
   copy_style(Template.HPmin, Template.vMinLine)
   Template.TILO_list = get_TILO(Template.dataSheet)
+  dashliney = Reference(Template.specSheet, min_col = 8, min_row = 20, max_row = 21)
+  LP_Dash1 = Reference(Template.specSheet, min_col = 7, min_row = 20, max_row = 21)
+  LP_Dash2 = Reference(Template.specSheet, min_col = 7, min_row = 22, max_row = 23)
+  MP_Dash1 = Reference(Template.specSheet, min_col = 7, min_row = 24, max_row = 25)
+  MP_Dash2 = Reference(Template.specSheet, min_col = 7, min_row = 26, max_row = 27)
+  HP_Dash3 = Reference(Template.specSheet, min_col = 7, min_row = 28, max_row = 29)
+  Template.D1LP = Template.specSheet.cell(row = 20, column = 7).value
+  Template.D2LP = Template.specSheet.cell(row = 22, column = 7).value
+  Template.D1MP = Template.specSheet.cell(row = 24, column = 7).value
+  Template.D2MP = Template.specSheet.cell(row = 26, column = 7).value
+  Template.D3HP = Template.specSheet.cell(row = 28, column = 7).value
+  LP_Dash1_series = Series(dashliney, LP_Dash1, title = 'dash-1LP')
+  LP_Dash2_series = Series(dashliney, LP_Dash2, title = 'dash-2LP')
+  MP_Dash1_series = Series(dashliney, MP_Dash1, title = 'dash-1MP')
+  MP_Dash2_series = Series(dashliney, MP_Dash2, title = 'dash-2MP')
+  HP_Dash3_series = Series(dashliney, HP_Dash3, title = 'dash-3HP')
+  copy_style(LP_Dash1_series, Template.dashLine1)
+  copy_style(LP_Dash2_series, Template.dashLine2)
+  copy_style(MP_Dash1_series, Template.dashLine1)
+  copy_style(MP_Dash2_series, Template.dashLine2)
+  copy_style(HP_Dash3_series, Template.dashLine1)
+  Template.LPDash = [LP_Dash1_series, LP_Dash2_series]
+  Template.MPDash = [MP_Dash1_series, MP_Dash2_series]
+  Template.HPDash = [HP_Dash3_series]
   return Template
 
 def set_title(title, text):
   title.text.rich.p[0].r[0].t = text
 
-def add_sigma(worksheet, ptr, Template, pos, x_list, y_list):
+def add_sigma(worksheet, ptr, Template, pos, x_list, y_list, dashSpec):
   x_clean_list = []
   y_clean_list = []
   for i in range(0, 36):
@@ -222,6 +264,7 @@ def add_sigma(worksheet, ptr, Template, pos, x_list, y_list):
       continue
     x_clean_list.append(x_list[i])
     y_clean_list.append(y_list[i])
+  # cal the std
   x = np.array(x_clean_list)
   y = np.array(y_clean_list)
   [a, b] = np.polyfit(x, np.log(y), 1)
@@ -230,12 +273,36 @@ def add_sigma(worksheet, ptr, Template, pos, x_list, y_list):
     y_est = np.exp(b) * np.exp(a * x_clean_list[i])
     diff.append(y_clean_list[i] - y_est)
   stdev = np.std(diff)
- 
+ # gen 3-sigma
+  sigma_y = []
   for i in range(0, 36):
     value = Template.dataSheet.cell(row = START_POINT_Y + i, column = ptr).value
     if not (value is None):
-      worksheet.cell(row = START_POINT_Y + i, column = pos + 24).value = 3 * stdev + float(value)
-      
+      sigma = 3 * stdev + float(value)
+      worksheet.cell(row = START_POINT_Y + i, column = pos + 24).value = sigma
+      sigma_y.append(sigma)
+    else :
+      sigma_y.append(None)
+  # gen the 3-sigma equation
+  x_clean_list = []
+  y_clean_list = []
+  for i in range(0, 36):
+    if x_list[i] is None:
+      continue
+    if sigma_y[i] is None:
+      continue
+    x_clean_list.append(x_list[i])
+    y_clean_list.append(sigma_y[i])
+  x = np.array(x_clean_list)
+  y = np.array(y_clean_list)
+  [a, b] = np.polyfit(x, np.log(y), 1)
+  crossV = []
+  for i in range(0, len(dashSpec)):
+    vol = float(dashSpec[i])
+    y_est = np.exp(b) * np.exp(a * vol)
+    crossV.append(y_est)
+  return crossV
+
 def plot_sigma(worksheet, Template, pos, xvalues):
   data = get_data(worksheet, pos + 24)[0]
   series = Series(data, xvalues, title = '3-sigma')
@@ -250,7 +317,7 @@ def add_charts(worksheet, ptr, subName, pattern, pos, Template):
     temp = pattern.hot
   else :
     temp = pattern.cold
-  [xvalues, Vmin, Vnum, TILO_value_list, scale] = get_Vol(pattern.condition, Template)
+  [xvalues, Vmin, Vnum, TILO_value_list, scale, dashLine, dashSpec, dashPos] = get_Vol(pattern.condition, Template)
   new_chart = deepcopy(Template.chart)
   # Data Plot
   series = Series(data, xvalues, title = subName + ' ' + str(temp))
@@ -258,9 +325,11 @@ def add_charts(worksheet, ptr, subName, pattern, pos, Template):
   new_chart.series[0] = series
   new_chart.series.append(Vmin)
   # 3 sigma Line
-  add_sigma(worksheet, ptr, Template, pos, TILO_value_list, data_list)
+  crossV = add_sigma(worksheet, ptr, Template, pos, TILO_value_list, data_list, dashSpec)
   sigma_line = plot_sigma(worksheet, Template, pos, xvalues)
   new_chart.series.append(sigma_line)
+  for dash in dashLine:
+    new_chart.append(dash)
   # Chart
   new_chart.height = 9
   new_chart.width = 16
@@ -268,10 +337,35 @@ def add_charts(worksheet, ptr, subName, pattern, pos, Template):
   new_chart.x_axis.scaling.max = scale.xmax
   new_chart.y_axis.scaling.min = scale.ymin
   new_chart.y_axis.scaling.max = scale.ymax
-  title = 'Versal VC1902 ES2\n' + pattern.name + ' ' + subName + ' @ ' + str(temp)
+  title = 'Versal VC1902 ES2 : ' + pattern.name + ' ' + subName + ' @ ' + str(temp)
   set_title(new_chart.title, title)
   x_axis_title = 'TILO,' + str(temp) + ' @ ' + str(Vnum) + ' VCCINT'
   set_title(new_chart.x_axis.title, x_axis_title)
-  
   worksheet.add_chart(new_chart, get_location(pos))
+  # Report Page
+  # margin = []
+  # for cross in crossV:
+  #   margin.append(Vnum - cross)
+  add_report(pattern, subName, Template, temp, crossV, float(Vnum), dashPos)
+  
+    
+  
+def add_report(pattern, subName, Template, temp, crossV, Vnum, dashPos):
+  reportSheet = Template.reportSheet
+  row = Template.reportPos + 6
+  Template.reportPos = Template.reportPos + 1
+  reportSheet.cell(row = row, column = 2).value = pattern.name + ' ' + subName
+  reportSheet.cell(row = row, column = 3).value = str(temp)
+  reportSheet.cell(row = row, column = 4).value = pattern.condition
+  margin = []
+  link = "#\'" + pattern.name +"\'!A1"
+  reportSheet.cell(row = row, column = 2).hyperlink  = link
+  for i in range(0, len(crossV)):
+    margin = Vnum - crossV[i]
+    reportSheet.cell(row = row, column = dashPos[i]).value = margin * 1000
+    reportSheet.cell(row = row, column = dashPos[i] + 1).value = margin / Vnum
+    if margin < 0:
+      ft = Font(color="FF0000")
+      reportSheet.cell(row = row, column = dashPos[i]).font = ft
+      reportSheet.cell(row = row, column = dashPos[i] + 1).font = ft
 pcie_plot()
