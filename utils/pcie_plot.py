@@ -1,6 +1,6 @@
 from openpyxl import load_workbook
 from openpyxl.chart import Series, Reference
-from openpyxl.styles import Font, Color
+from openpyxl.styles import Font, Color, PatternFill
 from copy import deepcopy
 import numpy as np
 
@@ -180,7 +180,7 @@ def get_Vol(Vol, Template):
     TILO_value_list = TILO_list.HP_list
     scale.xmin = 4
     scale.xmax = 7
-    scale.ymin = 0.44
+    scale.ymin = 0.42
     scale.ymax = 0.9
     dashLine = Template.HPDash
     dashSpec = [Template.D3HP]
@@ -190,15 +190,24 @@ def get_Vol(Vol, Template):
     exit(0)
   return [TILO, Vmin, Vnum, TILO_value_list, scale, dashLine, dashSpec, dashPos]
 
-def get_location(pos):
+def get_location(pos, link):
+  if link == True:
+    if pos == 1:
+      return [2, 1]
+    if pos == 2:
+      return [20, 1]
+    if pos == 3:
+      return [2, 12]
+    if pos == 4:
+      return [20, 12]
   if pos == 1:
     return 'B2'
   if pos == 2:
     return 'B20'
   if pos == 3:
-    return 'L2'
+    return 'M2'
   if pos == 4:
-    return 'L20'
+    return 'M20'
   
 def get_template(workbook):
   Template = Template_Sheet()
@@ -309,6 +318,14 @@ def plot_sigma(worksheet, Template, pos, xvalues):
   copy_style(series, Template.sigmaLine)
   return series
 
+def add_link(worksheet,pos, reportPos):
+  cell = worksheet.cell(row = pos[0], column = pos[1])
+  cell.value = 'Report'
+  cell.font = Font(bold = True)
+  # cell.fill = PatternFill(start_color="69c0ff", end_color="69c0ff", fill_type = "solid")
+  link = "#\'Final Report\'!C" + str(reportPos + 6) + ':J' + str(reportPos + 6)
+  cell.hyperlink = link
+  
 def add_charts(worksheet, ptr, subName, pattern, pos, Template):
   if not check_valid(Template.dataSheet, ptr):
     return
@@ -341,21 +358,21 @@ def add_charts(worksheet, ptr, subName, pattern, pos, Template):
   set_title(new_chart.title, title)
   x_axis_title = 'TILO,' + str(temp) + ' @ ' + str(Vnum) + ' VCCINT'
   set_title(new_chart.x_axis.title, x_axis_title)
-  worksheet.add_chart(new_chart, get_location(pos))
+  worksheet.add_chart(new_chart, get_location(pos, False))
+  add_link(worksheet, get_location(pos, True), Template.reportPos)
   # Report Page
   # margin = []
   # for cross in crossV:
   #   margin.append(Vnum - cross)
-  add_report(pattern, subName, Template, temp, crossV, float(Vnum), dashPos)
-  
-    
+  add_report(pattern, subName, Template, temp, crossV, float(Vnum), dashPos)    
   
 def add_report(pattern, subName, Template, temp, crossV, Vnum, dashPos):
   reportSheet = Template.reportSheet
   row = Template.reportPos + 6
   Template.reportPos = Template.reportPos + 1
-  reportSheet.cell(row = row, column = 2).value = pattern.name + ' ' + subName
-  reportSheet.cell(row = row, column = 3).value = str(temp)
+  if temp > 0:
+    reportSheet.cell(row = row, column = 2).value = pattern.name + ' ' + subName
+  reportSheet.cell(row = row, column = 3).value = temp
   reportSheet.cell(row = row, column = 4).value = pattern.condition
   margin = []
   link = "#\'" + pattern.name +"\'!A1"
@@ -368,4 +385,8 @@ def add_report(pattern, subName, Template, temp, crossV, Vnum, dashPos):
       ft = Font(color="FF0000")
       reportSheet.cell(row = row, column = dashPos[i]).font = ft
       reportSheet.cell(row = row, column = dashPos[i] + 1).font = ft
+  if temp < 0:
+    reportSheet.merge_cells(start_row = row - 1, start_column = 2, end_row = row, end_column = 2)
+    for i in range(3, 11):
+      reportSheet.cell(row = row, column = i).fill = PatternFill(start_color="f0f5ff", end_color="f0f5ff", fill_type = "solid")
 pcie_plot()
